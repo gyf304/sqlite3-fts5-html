@@ -28,7 +28,6 @@ SQLITE_EXTENSION_INIT1
 /* do not include void element here */
 static const char *azIgnoreTags[] = {
 	"canvas",
-	"link",
 	"math",
 	"noscript",
 	"object",
