@@ -12,10 +12,14 @@
 
 #include <string.h>
 
+#ifdef SQLITE_OMIT_LOAD_EXTENSION
+#define SQLITE_OMIT_LOAD_EXTENSION_PREINCLUDE
+#endif
+
 #include "sqlite3ext.h"
 SQLITE_EXTENSION_INIT1
 
-#ifdef SQLITE_OMIT_LOAD_EXTENSION
+#if defined(SQLITE_OMIT_LOAD_EXTENSION) && !defined(SQLITE_OMIT_LOAD_EXTENSION_PREINCLUDE)
 /* note: if you are on macOS - do not use included SQLite sqlite3ext.h */
 #error "The sqlite3ext.h header defines SQLITE_OMIT_LOAD_EXTENSION"
 #endif
