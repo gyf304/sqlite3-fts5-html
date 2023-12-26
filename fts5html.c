@@ -11,6 +11,7 @@
 */
 
 #include <string.h>
+#include <stdio.h>
 
 #ifdef SQLITE_OMIT_LOAD_EXTENSION
 #define SQLITE_OMIT_LOAD_EXTENSION_PREINCLUDE
@@ -24,13 +25,11 @@ SQLITE_EXTENSION_INIT1
 #error "The sqlite3ext.h header defines SQLITE_OMIT_LOAD_EXTENSION"
 #endif
 
+/* do not include void element here */
 static const char *azIgnoreTags[] = {
-	"base",
 	"canvas",
-	"embed",
 	"link",
 	"math",
-	"meta",
 	"noscript",
 	"object",
 	"script",
@@ -232,13 +231,13 @@ static int fts5HtmlTokenizerTokenize(
 		/* check if tag is ignored */
 		if (pzCurIgnoreTag == NULL && iTagType == 1) {
 			for (int i = 0; azIgnoreTags[i] != NULL; i++) {
-				if (hasPrefix(pTagName, nTagName, azIgnoreTags[i])) {
+				if (caseInsensitiveCompare(pTagName, azIgnoreTags[i], nTagName) == 0) {
 					pzCurIgnoreTag = azIgnoreTags[i];
 					break;
 				}
 			}
 		} else if (pzCurIgnoreTag != NULL && iTagType == 2) {
-			if (hasPrefix(pTagName, nTagName, pzCurIgnoreTag)) {
+			if (caseInsensitiveCompare(pTagName, pzCurIgnoreTag, nTagName) == 0) {
 				pzCurIgnoreTag = NULL;
 			}
 		}

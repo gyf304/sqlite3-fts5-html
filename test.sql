@@ -67,4 +67,4 @@ SELECT count(*) FROM test WHERE test MATCH 'information'; -- expected: 1
 SELECT count(*) FROM test WHERE test MATCH 'meta';        -- expected: 0
 SELECT count(*) FROM test WHERE test MATCH 'margin';      -- expected: 0
 SELECT count(*) FROM test WHERE test MATCH 'viewport';    -- expected: 0
-select count(*) from test where test match 'Helvetica';   -- expected: 0
+SELECT count(*) FROM test WHERE test match 'Helvetica';   -- expected: 0
