@@ -19,7 +19,7 @@ clean:
 	rm -f test.sql.*
 
 fts5html$(EXT): fts5html.c htmlentity.h
-	$(CC) -g -DSQLITE_BUILD_EXTENSION -shared -fPIC -o $@ $<
+	$(CC) -g -shared -fPIC -o $@ $<
 
 htmlentity.h: genhtmlentity.ts
 	bun genhtmlentity.ts > $@

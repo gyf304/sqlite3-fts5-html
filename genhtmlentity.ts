@@ -38,5 +38,7 @@ console.log(`
 	{0, 0}
 };
 
+#define MAX_ENTITY_NAME_LENGTH ${Math.max(...Object.keys(cleaned).map((k) => k.length))}
+
 #endif
 `);

@@ -2138,5 +2138,7 @@ static const htmlEntity htmlEntities[] = {
 	{0, 0}
 };
 
+#define MAX_ENTITY_NAME_LENGTH 31
+
 #endif
 

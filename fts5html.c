@@ -9,7 +9,7 @@
 **    May you share freely, never taking more than you give.
 **
 */
-
+#include <ctype.h>
 #include <string.h>
 
 #ifdef SQLITE_OMIT_LOAD_EXTENSION
@@ -115,21 +115,10 @@ error:
 	return rc;
 }
 
-static inline int isWhitespace(char c) {
-	return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-}
-
-static inline char lower(char c) {
-	if (c >= 'A' && c <= 'Z') {
-		return c - 'A' + 'a';
-	}
-	return c;
-}
-
 static inline int caseInsensitiveCompare(const char *a, const char *b, int n) {
 	for (int i = 0; i < n; i++) {
-		char ca = lower(a[i]);
-		char cb = lower(b[i]);
+		char ca = (char)tolower(a[i]);
+		char cb = (char)tolower(b[i]);
 		int diff = ca - cb;
 		if (diff != 0 || ca == '\0' || cb == '\0') {
 			return diff;
@@ -268,12 +257,12 @@ static int htmlUnescape(const char *s, int len, htmlEscape **pOutEscape) {
 } while (0)
 
 	int escaped = -1;
-	char buf[8] = {0};
+	char buf[MAX_ENTITY_NAME_LENGTH + 4] = {0};
 
 	for (; p - s < len; p++) {
 		char c = *p;
 		if (escaped > 0) {
-			if (c == ';') {
+			if (!isalnum(c) && c != '#') {
 				if (buf[1] == '#') {
 					/* numeric escape, buf: &#0000 or &#x0000 */
 					int code = parseCodepoint(buf + 2, escaped - 2);
@@ -308,6 +297,10 @@ static int htmlUnescape(const char *s, int len, htmlEscape **pOutEscape) {
 							break;
 						}
 					}
+				}
+				if (c != ';') {
+					/* unclosed entity */
+					EMIT(c);
 				}
 				escaped = 0;
 			} else {
@@ -425,7 +418,7 @@ static int fts5HtmlTokenizerTokenize(
 			iTagType = 1;
 		}
 		pTagName = pCur;
-		while (!isWhitespace(*pCur) && *pCur != '>') {
+		while (!isspace(*pCur) && *pCur != '>') {
 			STEP(1);
 		}
 		nTagName = pCur - pTagName;
