@@ -19,11 +19,8 @@ clean:
 	rm -rf fts5html$(EXT).dSYM
 	rm -f test.sql.*
 
-fts5html$(EXT): fts5html.c htmlentity.h
+fts5html$(EXT): fts5html.c
 	$(CC) $(CFLAGS) -g -shared -fPIC -o $@ $<
-
-htmlentity.h: genhtmlentity.ts
-	bun genhtmlentity.ts > $@
 
 test.sql.expected: test.sql
 	sed -rn 's/.*-- expected: (.*)$$/\1/p' $< > $@
