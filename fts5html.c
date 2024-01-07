@@ -72,7 +72,7 @@ struct Fts5HtmlTokenizerContext {
 	/* current position in the original (html) text
 	 * this is relative to the original text passed to the xTokenize call to
 	 * this tokenizer
-	*/
+	 */
 	int iOriginalCur;
 };
 typedef struct Fts5HtmlTokenizerContext Fts5HtmlTokenizerContext;
@@ -187,7 +187,7 @@ static int parseCodepoint(const char *s, int len) {
 	if (len < 1) {
 		return -1;
 	}
-	if (s[0] == 'x') {
+	if (s[0] == 'x' || s[0] == 'X') {
 		/* hex, e.g. &#x123; */
 		for (int i = 1; i < len; i++) {
 			char d = s[i];
