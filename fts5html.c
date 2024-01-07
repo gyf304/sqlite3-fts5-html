@@ -77,6 +77,44 @@ struct Fts5HtmlTokenizerContext {
 };
 typedef struct Fts5HtmlTokenizerContext Fts5HtmlTokenizerContext;
 
+static const htmlEntity *findEntity(const char *s, int len) {
+	int l = 0;
+	int r = NUM_ENTITIES - 1;
+	while (l <= r) {
+		int m = (l + r) / 2;
+		int cmp = strncmp(s, htmlEntities[m].pzName, len);
+		if (cmp == 0) {
+			return &htmlEntities[m];
+		} else if (cmp < 0) {
+			r = m - 1;
+		} else {
+			l = m + 1;
+		}
+	}
+
+	return NULL;
+}
+
+static inline int caseInsensitiveCompare(const char *a, const char *b, int n) {
+	for (int i = 0; i < n; i++) {
+		char ca = (char)tolower(a[i]);
+		char cb = (char)tolower(b[i]);
+		int diff = ca - cb;
+		if (diff != 0 || ca == '\0' || cb == '\0') {
+			return diff;
+		}
+	}
+	return 0;
+}
+
+static inline int hasPrefix(const char *p, int n, const char *prefix) {
+	int len = strlen(prefix);
+	if (n < len) {
+		return 0;
+	}
+	return strncmp(p, prefix, len) == 0;
+}
+
 static int fts5HtmlTokenizerCreate(void *pCtx, const char **azArg, int nArg, Fts5Tokenizer **ppOut) {
 	int rc = SQLITE_OK;
 	fts5_api *pApi = (fts5_api*)pCtx;
@@ -113,26 +151,6 @@ error:
 		sqlite3_free(pRet);
 	}
 	return rc;
-}
-
-static inline int caseInsensitiveCompare(const char *a, const char *b, int n) {
-	for (int i = 0; i < n; i++) {
-		char ca = (char)tolower(a[i]);
-		char cb = (char)tolower(b[i]);
-		int diff = ca - cb;
-		if (diff != 0 || ca == '\0' || cb == '\0') {
-			return diff;
-		}
-	}
-	return 0;
-}
-
-static inline int hasPrefix(const char *p, int n, const char *prefix) {
-	int len = strlen(prefix);
-	if (n < len) {
-		return 0;
-	}
-	return caseInsensitiveCompare(p, prefix, len) == 0;
 }
 
 static int fts5TokenizeCallback(
@@ -256,7 +274,7 @@ static int htmlUnescape(const char *s, int len, htmlEscape **pOutEscape) {
 	pEmit = p + 1;\
 } while (0)
 
-	int escaped = -1;
+	unsigned long escaped = 0;
 	char buf[MAX_ENTITY_NAME_LENGTH + 4] = {0};
 
 	for (; p - s < len; p++) {
@@ -284,18 +302,19 @@ static int htmlUnescape(const char *s, int len, htmlEscape **pOutEscape) {
 						EMIT(0x80 | ((code >> 6) & 0x3F));
 						EMIT(0x80 | (code & 0x3F));
 					} else {
-						/* invalid escape, */
+						/* invalid escape, ignore */
 					}
 				} else {
 					/* named escape, buf: &amp; */
-					for (int i = 0; htmlEntities[i].pzName != NULL; i++) {
-						if (memcmp(buf + 1, htmlEntities[i].pzName, escaped - 2) == 0) {
-							const char *u = htmlEntities[i].pzUtf8;
-							for (int j = 0; u[j] != 0; j++) {
-								EMIT(u[j]);
-							}
-							break;
+					const htmlEntity *entity = findEntity(buf + 1, escaped - 1);
+					if (entity != NULL) {
+						const char *pEntity = entity->pzUtf8;
+						while (*pEntity != '\0') {
+							EMIT(*pEntity);
+							pEntity++;
 						}
+					} else {
+						/* invalid escape, ignore */
 					}
 				}
 				if (c != ';') {
@@ -387,7 +406,6 @@ static int fts5HtmlTokenizerTokenize(
 				.iPlainCur = 0,
 				.iOriginalCur = pPrev - pText,
 			};
-			int len = pCur - pPrev;
 			/* emit the text token */
 			rc = p->nextTok.xTokenize(p->pNextTokInst, &ctx, flags, pEscape->pPlain, pEscape->n, fts5TokenizeCallback);
 			htmlEscapeFree(pEscape);
@@ -456,7 +474,6 @@ static int fts5HtmlTokenizerTokenize(
 
 static void fts5HtmlTokenizerDelete(Fts5Tokenizer *pTokenizer) {
 	Fts5HtmlTokenizer *p = (Fts5HtmlTokenizer*)pTokenizer;
-	int rc = SQLITE_OK;
 	p->nextTok.xDelete(p->pNextTokInst);
 	sqlite3_free(p);
 }

@@ -966,9 +966,9 @@ static const htmlEntity htmlEntities[] = {
 	{"empty", "\xe2\x88\x85"},
 	{"emptyset", "\xe2\x88\x85"},
 	{"emptyv", "\xe2\x88\x85"},
+	{"emsp", "\xe2\x80\x83"},
 	{"emsp13", "\xe2\x80\x84"},
 	{"emsp14", "\xe2\x80\x85"},
-	{"emsp", "\xe2\x80\x83"},
 	{"eng", "\xc5\x8b"},
 	{"ensp", "\xe2\x80\x82"},
 	{"eogon", "\xc4\x99"},
@@ -1900,10 +1900,10 @@ static const htmlEntity htmlEntities[] = {
 	{"succsim", "\xe2\x89\xbf"},
 	{"sum", "\xe2\x88\x91"},
 	{"sung", "\xe2\x99\xaa"},
+	{"sup", "\xe2\x8a\x83"},
 	{"sup1", "\xc2\xb9"},
 	{"sup2", "\xc2\xb2"},
 	{"sup3", "\xc2\xb3"},
-	{"sup", "\xe2\x8a\x83"},
 	{"supE", "\xe2\xab\x86"},
 	{"supdot", "\xe2\xaa\xbe"},
 	{"supdsub", "\xe2\xab\x98"},
@@ -2139,6 +2139,7 @@ static const htmlEntity htmlEntities[] = {
 };
 
 #define MAX_ENTITY_NAME_LENGTH 31
+#define NUM_ENTITIES 2125
 
 #endif
 

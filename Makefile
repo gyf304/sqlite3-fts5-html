@@ -1,4 +1,5 @@
 EXT = .so
+CFLAGS ?= -Os -Wall -Wextra -Werror
 
 ifeq ($(OS),Windows_NT)
 	EXT = .dll
@@ -19,7 +20,7 @@ clean:
 	rm -f test.sql.*
 
 fts5html$(EXT): fts5html.c htmlentity.h
-	$(CC) -g -shared -fPIC -o $@ $<
+	$(CC) $(CFLAGS) -g -shared -fPIC -o $@ $<
 
 htmlentity.h: genhtmlentity.ts
 	bun genhtmlentity.ts > $@
