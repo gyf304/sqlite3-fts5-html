@@ -11,15 +11,18 @@ endif
 
 .PHONY: all clean test
 
-all: fts5html$(EXT)
+all: fts5html$(EXT) htmlentity.h
 
 clean:
 	rm -f fts5html$(EXT)
 	rm -rf fts5html$(EXT).dSYM
 	rm -f test.sql.*
 
-fts5html$(EXT): fts5html.c
+fts5html$(EXT): fts5html.c htmlentity.h
 	$(CC) -g -DSQLITE_BUILD_EXTENSION -shared -fPIC -o $@ $<
+
+htmlentity.h: genhtmlentity.ts
+	bun genhtmlentity.ts > $@
 
 test.sql.expected: test.sql
 	sed -rn 's/.*-- expected: (.*)$$/\1/p' $< > $@

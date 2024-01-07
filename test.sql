@@ -5,7 +5,9 @@ INSERT INTO test VALUES('a', '
 <head>
 	<script>ignored</script></head>
 <body>
-	hello <style>also ignored</style> world</body>
+	hello <style>also ignored</style> world &nbsp;&quot;asdf&quot;
+	&#x61;&#x62;&#x63;&#x64;
+</body>
 </html>
 ');
 
@@ -64,6 +66,9 @@ SELECT count(*) FROM test WHERE test MATCH 'hello world'; -- expected: 1
 SELECT count(*) FROM test WHERE test MATCH 'example';     -- expected: 1
 SELECT count(*) FROM test WHERE test MATCH 'domain';      -- expected: 1
 SELECT count(*) FROM test WHERE test MATCH 'information'; -- expected: 1
+SELECT count(*) FROM test WHERE test MATCH 'quot';        -- expected: 0
+SELECT count(*) FROM test WHERE test MATCH 'nbsp';        -- expected: 0
+SELECT count(*) FROM test WHERE test MATCH 'abcd';        -- expected: 1
 SELECT count(*) FROM test WHERE test MATCH 'meta';        -- expected: 0
 SELECT count(*) FROM test WHERE test MATCH 'margin';      -- expected: 0
 SELECT count(*) FROM test WHERE test MATCH 'viewport';    -- expected: 0

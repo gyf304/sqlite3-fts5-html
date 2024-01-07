@@ -11,7 +11,6 @@
 */
 
 #include <string.h>
-#include <stdio.h>
 
 #ifdef SQLITE_OMIT_LOAD_EXTENSION
 #define SQLITE_OMIT_LOAD_EXTENSION_PREINCLUDE
@@ -24,6 +23,8 @@ SQLITE_EXTENSION_INIT1
 /* note: if you are on macOS - do not use included SQLite sqlite3ext.h */
 #error "The sqlite3ext.h header defines SQLITE_OMIT_LOAD_EXTENSION"
 #endif
+
+#include "htmlentity.h"
 
 /* do not include void element here */
 static const char *azIgnoreTags[] = {
@@ -44,6 +45,13 @@ struct Fts5HtmlTokenizer {
 };
 typedef struct Fts5HtmlTokenizer Fts5HtmlTokenizer;
 
+struct htmlEscape {
+	char *pLengths;
+	char *pPlain;
+	int n;
+};
+typedef struct htmlEscape htmlEscape;
+
 struct Fts5HtmlTokenizerContext {
 	int (*xToken)(
 		void *pCtx,
@@ -54,7 +62,18 @@ struct Fts5HtmlTokenizerContext {
 		int iEnd
 	);
 	void *pCtx;
-	int offset;
+	htmlEscape *pEscape;
+
+	/* current position in the plain (unescaped) text, relative to the what is
+	 * passed to the xTokenize call to the next tokenizer
+	 */
+	int iPlainCur;
+
+	/* current position in the original (html) text
+	 * this is relative to the original text passed to the xTokenize call to
+	 * this tokenizer
+	*/
+	int iOriginalCur;
 };
 typedef struct Fts5HtmlTokenizerContext Fts5HtmlTokenizerContext;
 
@@ -136,7 +155,189 @@ static int fts5TokenizeCallback(
 	int iEnd
 ) {
 	Fts5HtmlTokenizerContext *p = (Fts5HtmlTokenizerContext*)pCtx;
-	return p->xToken(p->pCtx, tflags, pToken, nToken, p->offset + iStart, p->offset + iEnd);
+	htmlEscape *e = p->pEscape;
+
+	int iActualStart = p->iOriginalCur;
+	if (p->iPlainCur > iStart) {
+		return SQLITE_ERROR;
+	}
+
+	for (int i = p->iPlainCur; i < iStart; i++) {
+		iActualStart += e->pLengths[i];
+	}
+	int iActualEnd = iActualStart;
+	for (int i = iStart; i < iEnd; i++) {
+		iActualEnd += e->pLengths[i];
+	}
+	p->iOriginalCur = iActualEnd;
+	p->iPlainCur = iEnd;
+
+	return p->xToken(p->pCtx, tflags, pToken, nToken, iActualStart, iActualEnd);
+}
+
+static int parseCodepoint(const char *s, int len) {
+	int code = 0;
+	if (len < 1) {
+		return -1;
+	}
+	if (s[0] == 'x') {
+		/* hex, e.g. &#x123; */
+		for (int i = 1; i < len; i++) {
+			char d = s[i];
+			code *= 16;
+			if (d >= '0' && d <= '9') {
+				code += d - '0';
+			} else if (d >= 'a' && d <= 'f') {
+				code += d - 'a' + 10;
+			} else if (d >= 'A' && d <= 'F') {
+				code += d - 'A' + 10;
+			} else {
+				return -1;
+			}
+		}
+	} else {
+		/* decimal, e.g. &#123; */
+		for (int i = 0; i < len; i++) {
+			char d = s[i];
+			code *= 10;
+			if (d >= '0' && d <= '9') {
+				code += d - '0';
+			} else {
+				return -1;
+			}
+		}
+	}
+	return code;
+}
+
+static void htmlEscapeFree(htmlEscape *p) {
+	if (p != NULL) {
+		if (p->pLengths != NULL) {
+			sqlite3_free(p->pLengths);
+		}
+		if (p->pPlain != NULL) {
+			sqlite3_free(p->pPlain);
+		}
+		sqlite3_free(p);
+	}
+}
+
+static int htmlUnescape(const char *s, int len, htmlEscape **pOutEscape) {
+	if (len <= 0) {
+		*pOutEscape = NULL;
+		return SQLITE_OK;
+	}
+	int bufLen = len + 16;
+
+	int rc = SQLITE_OK;
+	htmlEscape *e = sqlite3_malloc(sizeof(*e));
+	if (e == NULL) {
+		rc = SQLITE_NOMEM;
+		goto end;
+	}
+	memset(e, 0, sizeof(*e));
+
+	e->pLengths = sqlite3_malloc(bufLen);
+	if (e->pLengths == NULL) {
+		rc = SQLITE_NOMEM;
+		goto end;
+	}
+	memset(e->pLengths, 0, bufLen);
+
+	e->pPlain = sqlite3_malloc(bufLen);
+	if (e->pPlain == NULL) {
+		rc = SQLITE_NOMEM;
+		goto end;
+	}
+	memset(e->pPlain, 0, bufLen);
+
+	const char *p = s;
+	const char *pEmit = s;
+
+	char *ep = e->pPlain;
+	char *el = e->pLengths;
+
+#define EMIT(c) do {\
+	if (ep >= e->pPlain + bufLen) {\
+		rc = SQLITE_ERROR;\
+		goto end;\
+	}\
+	*ep++ = c;\
+	*el++ = (p + 1) - pEmit;\
+	pEmit = p + 1;\
+} while (0)
+
+	int escaped = -1;
+	char buf[8] = {0};
+
+	for (; p - s < len; p++) {
+		char c = *p;
+		if (escaped > 0) {
+			if (c == ';') {
+				if (buf[1] == '#') {
+					/* numeric escape, buf: &#0000 or &#x0000 */
+					int code = parseCodepoint(buf + 2, escaped - 2);
+					/* assume code is a Unicode code point, encode into UTF-8 */
+					if (code < 0) {
+						/* invalid escape, */
+					} else if (code < 0x80) {
+						EMIT(code);
+					} else if (code < 0x800) {
+						EMIT(0xC0 | (code >> 6));
+						EMIT(0x80 | (code & 0x3F));
+					} else if (code < 0x10000) {
+						EMIT(0xE0 | (code >> 12));
+						EMIT(0x80 | ((code >> 6) & 0x3F));
+						EMIT(0x80 | (code & 0x3F));
+					} else if (code < 0x110000) {
+						EMIT(0xF0 | (code >> 18));
+						EMIT(0x80 | ((code >> 12) & 0x3F));
+						EMIT(0x80 | ((code >> 6) & 0x3F));
+						EMIT(0x80 | (code & 0x3F));
+					} else {
+						/* invalid escape, */
+					}
+				} else {
+					/* named escape, buf: &amp; */
+					for (int i = 0; htmlEntities[i].pzName != NULL; i++) {
+						if (memcmp(buf + 1, htmlEntities[i].pzName, escaped - 2) == 0) {
+							const char *u = htmlEntities[i].pzUtf8;
+							for (int j = 0; u[j] != 0; j++) {
+								EMIT(u[j]);
+							}
+							break;
+						}
+					}
+				}
+				escaped = 0;
+			} else {
+				if (escaped < sizeof(buf)) {
+					buf[escaped++] = c;
+				}
+			}
+		} else {
+			/* not escaped */
+			if (c == '&') {
+				escaped = 0;
+				memset(buf, 0, sizeof(buf));
+				buf[escaped++] = c;
+			} else {
+				EMIT(c);
+			}
+		}
+	}
+
+	e->n = ep - e->pPlain;
+
+	*pOutEscape = e;
+	return rc;
+
+#undef EMIT
+end:
+	htmlEscapeFree(e);
+
+	*pOutEscape = e;
+	return rc;
 }
 
 static int fts5HtmlTokenizerTokenize(
@@ -181,14 +382,22 @@ static int fts5HtmlTokenizerTokenize(
 
 		/* current is '<' or end of text */
 		if (pzCurIgnoreTag == NULL && pCur > pPrev) {
+			htmlEscape *pEscape = NULL;
+			rc = htmlUnescape(pPrev, pCur - pPrev, &pEscape);
+			if (rc != SQLITE_OK) {
+				return rc;
+			}
 			Fts5HtmlTokenizerContext ctx = {
 				.xToken = xToken,
 				.pCtx = pCtx,
-				.offset = pPrev - pText,
+				.pEscape = pEscape,
+				.iPlainCur = 0,
+				.iOriginalCur = pPrev - pText,
 			};
 			int len = pCur - pPrev;
 			/* emit the text token */
-			rc = p->nextTok.xTokenize(p->pNextTokInst, &ctx, flags, pPrev, len, fts5TokenizeCallback);
+			rc = p->nextTok.xTokenize(p->pNextTokInst, &ctx, flags, pEscape->pPlain, pEscape->n, fts5TokenizeCallback);
+			htmlEscapeFree(pEscape);
 			if (rc != SQLITE_OK) {
 				return rc;
 			}
