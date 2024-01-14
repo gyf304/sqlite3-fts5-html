@@ -24,6 +24,10 @@ SQLITE_EXTENSION_INIT1
 #error "The sqlite3ext.h header defines SQLITE_OMIT_LOAD_EXTENSION"
 #endif
 
+#ifndef SQLITE_PRIVATE
+#define SQLITE_PRIVATE static
+#endif
+
 /* START OF HTML ENTITIES */
 struct htmlEntity {
 	const char *pzName;
@@ -2672,7 +2676,7 @@ int sqlite3_ftshtml_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routine
 	return fts5HtmlInit(db);
 }
 #else
-int sqlite3Fts5HtmlInit(sqlite3 *db) {
+SQLITE_PRIVATE int sqlite3Fts5HtmlInit(sqlite3 *db) {
 	return fts5HtmlInit(db);
 }
 #endif
